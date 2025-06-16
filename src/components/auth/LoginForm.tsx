@@ -1,11 +1,11 @@
 
 import React, { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useUser } from '@/contexts/UserContext';
-import { useToast } from '@/hooks/use-toast';
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
@@ -15,40 +15,39 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const { login } = useUser();
-  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
 
-    try {
-      await login(email, password);
-      toast({
-        title: "Login realizado com sucesso!",
-        description: "Bem-vindo à plataforma.",
-      });
-    } catch (error) {
-      toast({
-        title: "Erro no login",
-        description: "Verifique suas credenciais e tente novamente.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+    const result = await login(email, password);
+    
+    if (result.error) {
+      setError(result.error);
     }
+    
+    setLoading(false);
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="w-full">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold text-center">Entrar</CardTitle>
+        <CardTitle className="text-2xl text-center">Entrar</CardTitle>
         <CardDescription className="text-center">
           Digite suas credenciais para acessar a plataforma
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -60,29 +59,39 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
               required
             />
           </div>
+          
           <div className="space-y-2">
             <Label htmlFor="password">Senha</Label>
             <Input
               id="password"
               type="password"
-              placeholder="••••••••"
+              placeholder="Sua senha"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
+          
+          <Button 
+            type="submit" 
+            className="w-full" 
+            disabled={loading}
+          >
             {loading ? 'Entrando...' : 'Entrar'}
           </Button>
         </form>
-        <div className="mt-4 text-center text-sm">
-          <span className="text-muted-foreground">Não tem uma conta? </span>
-          <button
-            onClick={onSwitchToRegister}
-            className="text-primary hover:underline font-medium"
-          >
-            Criar conta
-          </button>
+        
+        <div className="mt-4 text-center">
+          <span className="text-sm text-muted-foreground">
+            Não tem uma conta?{' '}
+            <button
+              type="button"
+              onClick={onSwitchToRegister}
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              Criar conta
+            </button>
+          </span>
         </div>
       </CardContent>
     </Card>

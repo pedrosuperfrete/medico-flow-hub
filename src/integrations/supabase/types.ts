@@ -17,6 +17,7 @@ export type Database = {
           id: string
           observacao: string | null
           paciente_id: string | null
+          professional_id: string | null
           status: string
           tipo_servico: string
         }
@@ -27,6 +28,7 @@ export type Database = {
           id?: string
           observacao?: string | null
           paciente_id?: string | null
+          professional_id?: string | null
           status: string
           tipo_servico: string
         }
@@ -37,6 +39,7 @@ export type Database = {
           id?: string
           observacao?: string | null
           paciente_id?: string | null
+          professional_id?: string | null
           status?: string
           tipo_servico?: string
         }
@@ -48,7 +51,47 @@ export type Database = {
             referencedRelation: "pacientes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "atendimentos_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      clinicas: {
+        Row: {
+          address: string | null
+          cnpj: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          cnpj?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          cnpj?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       cobrancas: {
         Row: {
@@ -60,6 +103,7 @@ export type Database = {
           id: string
           meio_pagamento: string | null
           paciente_id: string | null
+          professional_id: string | null
           status: string
           valor: number
         }
@@ -72,6 +116,7 @@ export type Database = {
           id?: string
           meio_pagamento?: string | null
           paciente_id?: string | null
+          professional_id?: string | null
           status: string
           valor: number
         }
@@ -84,6 +129,7 @@ export type Database = {
           id?: string
           meio_pagamento?: string | null
           paciente_id?: string | null
+          professional_id?: string | null
           status?: string
           valor?: number
         }
@@ -102,6 +148,13 @@ export type Database = {
             referencedRelation: "pacientes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cobrancas_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       documentos: {
@@ -110,6 +163,7 @@ export type Database = {
           id: string
           nome_arquivo: string
           paciente_id: string | null
+          professional_id: string | null
           tipo: string | null
           url: string
         }
@@ -118,6 +172,7 @@ export type Database = {
           id?: string
           nome_arquivo: string
           paciente_id?: string | null
+          professional_id?: string | null
           tipo?: string | null
           url: string
         }
@@ -126,6 +181,7 @@ export type Database = {
           id?: string
           nome_arquivo?: string
           paciente_id?: string | null
+          professional_id?: string | null
           tipo?: string | null
           url?: string
         }
@@ -135,6 +191,13 @@ export type Database = {
             columns: ["paciente_id"]
             isOneToOne: false
             referencedRelation: "pacientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -148,6 +211,7 @@ export type Database = {
           genero: string | null
           id: string
           nome: string
+          professional_id: string | null
           telefone: string | null
           user_id: string
         }
@@ -159,6 +223,7 @@ export type Database = {
           genero?: string | null
           id?: string
           nome: string
+          professional_id?: string | null
           telefone?: string | null
           user_id: string
         }
@@ -170,10 +235,66 @@ export type Database = {
           genero?: string | null
           id?: string
           nome?: string
+          professional_id?: string | null
           telefone?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pacientes_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          clinic_id: string | null
+          created_at: string | null
+          crm: string | null
+          email: string
+          id: string
+          name: string
+          phone: string | null
+          role: string
+          specialty: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          clinic_id?: string | null
+          created_at?: string | null
+          crm?: string | null
+          email: string
+          id: string
+          name: string
+          phone?: string | null
+          role?: string
+          specialty?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          clinic_id?: string | null
+          created_at?: string | null
+          crm?: string | null
+          email?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          role?: string
+          specialty?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_clinic_id_fkey"
+            columns: ["clinic_id"]
+            isOneToOne: false
+            referencedRelation: "clinicas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tarefas: {
         Row: {
@@ -182,6 +303,7 @@ export type Database = {
           data_limite: string | null
           id: string
           paciente_id: string | null
+          professional_id: string | null
           status: string | null
           tipo_acao: string | null
           titulo: string
@@ -192,6 +314,7 @@ export type Database = {
           data_limite?: string | null
           id?: string
           paciente_id?: string | null
+          professional_id?: string | null
           status?: string | null
           tipo_acao?: string | null
           titulo: string
@@ -202,6 +325,7 @@ export type Database = {
           data_limite?: string | null
           id?: string
           paciente_id?: string | null
+          professional_id?: string | null
           status?: string | null
           tipo_acao?: string | null
           titulo?: string
@@ -214,6 +338,13 @@ export type Database = {
             referencedRelation: "pacientes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "tarefas_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -221,7 +352,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_access_to_data: {
+        Args: { professional_user_id: string }
+        Returns: boolean
+      }
+      is_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

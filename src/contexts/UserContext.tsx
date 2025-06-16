@@ -1,34 +1,39 @@
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 
 export interface User {
   id: string;
   email: string;
   role: 'admin' | 'professional';
   name: string;
-  clinicId: string;
+  clinicId: string | null;
   professionalId?: string;
   specialty?: string;
   crm?: string;
+  phone?: string;
 }
 
 export interface Clinic {
   id: string;
   name: string;
-  cnpj: string;
-  address: string;
-  phone: string;
-  email: string;
+  cnpj: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
 }
 
 interface UserContextType {
   user: User | null;
   clinic: Clinic | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<{ error?: string }>;
+  logout: () => Promise<void>;
+  register: (email: string, password: string, name: string) => Promise<{ error?: string }>;
   isAuthenticated: boolean;
   isOnboardingComplete: boolean;
   completeOnboarding: () => void;
+  loading: boolean;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -45,43 +50,132 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [clinic, setClinic] = useState<Clinic | null>(null);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
 
-  const login = async (email: string, password: string) => {
-    // Simulação de login - em produção seria uma chamada real para API
-    console.log('Login attempt:', { email, password });
-    
-    // Mock user data
-    const mockUser: User = {
-      id: '1',
-      email: email,
-      role: email.includes('admin') ? 'admin' : 'professional',
-      name: email.includes('admin') ? 'Dr. Admin' : 'Dr. João Silva',
-      clinicId: 'clinic-1',
-      professionalId: email.includes('admin') ? undefined : 'prof-1',
-      specialty: email.includes('admin') ? undefined : 'Cardiologia',
-      crm: email.includes('admin') ? undefined : 'CRM-12345'
-    };
+  useEffect(() => {
+    // Configurar listener de autenticação
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session);
+        setSession(session);
+        
+        if (session?.user) {
+          await loadUserProfile(session.user);
+        } else {
+          setUser(null);
+          setClinic(null);
+          setIsOnboardingComplete(false);
+        }
+        setLoading(false);
+      }
+    );
 
-    const mockClinic: Clinic = {
-      id: 'clinic-1',
-      name: 'Clínica Saúde Mais',
-      cnpj: '12.345.678/0001-90',
-      address: 'Rua das Flores, 123 - Centro',
-      phone: '(11) 99999-9999',
-      email: 'contato@saudemais.com.br'
-    };
+    // Verificar sessão existente
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session:', session);
+      setSession(session);
+      if (session?.user) {
+        loadUserProfile(session.user);
+      } else {
+        setLoading(false);
+      }
+    });
 
-    setUser(mockUser);
-    setClinic(mockClinic);
-    
-    // Simula que o onboarding já foi feito para usuários existentes
-    setIsOnboardingComplete(true);
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const loadUserProfile = async (authUser: SupabaseUser) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .single();
+
+      if (error) {
+        console.error('Error loading profile:', error);
+        return;
+      }
+
+      if (profile) {
+        const userData: User = {
+          id: profile.id,
+          email: profile.email,
+          role: profile.role as 'admin' | 'professional',
+          name: profile.name,
+          clinicId: profile.clinic_id,
+          specialty: profile.specialty,
+          crm: profile.crm,
+          phone: profile.phone
+        };
+
+        setUser(userData);
+
+        // Carregar dados da clínica se existir
+        if (profile.clinic_id) {
+          const { data: clinicData } = await supabase
+            .from('clinicas')
+            .select('*')
+            .eq('id', profile.clinic_id)
+            .single();
+
+          if (clinicData) {
+            setClinic(clinicData);
+            setIsOnboardingComplete(true);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in loadUserProfile:', error);
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    setClinic(null);
-    setIsOnboardingComplete(false);
+  const login = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return {};
+    } catch (error) {
+      return { error: 'Erro interno do servidor' };
+    }
+  };
+
+  const register = async (email: string, password: string, name: string) => {
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            name: name
+          }
+        }
+      });
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return {};
+    } catch (error) {
+      return { error: 'Erro interno do servidor' };
+    }
+  };
+
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error logging out:', error);
+    }
   };
 
   const completeOnboarding = () => {
@@ -95,9 +189,11 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         clinic,
         login,
         logout,
-        isAuthenticated: !!user,
+        register,
+        isAuthenticated: !!session?.user,
         isOnboardingComplete,
         completeOnboarding,
+        loading,
       }}
     >
       {children}
