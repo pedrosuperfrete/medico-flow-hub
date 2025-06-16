@@ -29,7 +29,18 @@ const ClinicInfoStep: React.FC<ClinicInfoStepProps> = ({ onNext, initialData = {
     setLoading(true);
     setError('');
 
+    console.log('Tentando criar clínica com dados:', formData);
+    console.log('Usuário autenticado:', user?.id);
+
     try {
+      // Verificar se o usuário está autenticado
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('Sessão atual:', session);
+
+      if (!session || !user) {
+        throw new Error('Usuário não autenticado');
+      }
+
       // Criar clínica no Supabase
       const { data: clinic, error: clinicError } = await supabase
         .from('clinicas')
@@ -37,12 +48,17 @@ const ClinicInfoStep: React.FC<ClinicInfoStepProps> = ({ onNext, initialData = {
         .select()
         .single();
 
+      console.log('Resultado da inserção da clínica:', { clinic, clinicError });
+
       if (clinicError) {
+        console.error('Erro ao criar clínica:', clinicError);
         throw clinicError;
       }
 
       // Atualizar o perfil do usuário com o clinic_id
       if (user && clinic) {
+        console.log('Atualizando perfil do usuário com clinic_id:', clinic.id);
+        
         const { error: profileError } = await supabase
           .from('profiles')
           .update({ 
@@ -51,13 +67,18 @@ const ClinicInfoStep: React.FC<ClinicInfoStepProps> = ({ onNext, initialData = {
           })
           .eq('id', user.id);
 
+        console.log('Resultado da atualização do perfil:', { profileError });
+
         if (profileError) {
+          console.error('Erro ao atualizar perfil:', profileError);
           throw profileError;
         }
       }
 
+      console.log('Clínica criada com sucesso!');
       onNext({ ...formData, clinicId: clinic.id });
     } catch (error: any) {
+      console.error('Erro completo:', error);
       setError(error.message || 'Erro ao salvar dados da clínica');
     } finally {
       setLoading(false);
