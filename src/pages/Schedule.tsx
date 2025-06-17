@@ -1,10 +1,10 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useUser } from '@/contexts/UserContext';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Appointment {
   id: string;
@@ -22,54 +22,126 @@ const Schedule: React.FC = () => {
   const { user } = useUser();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'day' | 'week' | 'month'>('day');
+  const [loading, setLoading] = useState(true);
+  const [dataTimeout, setDataTimeout] = useState(false);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
 
-  // Mock data
-  const appointments: Appointment[] = [
-    {
-      id: '1',
-      patient: 'Maria Santos',
-      service: 'Consulta Cardiológica',
-      date: '2024-06-16',
-      time: '09:00',
-      duration: 60,
-      value: 200,
-      status: 'scheduled',
-      paymentStatus: 'pending'
-    },
-    {
-      id: '2',
-      patient: 'João Silva',
-      service: 'Retorno',
-      date: '2024-06-16',
-      time: '10:30',
-      duration: 30,
-      value: 150,
-      status: 'scheduled',
-      paymentStatus: 'pending'
-    },
-    {
-      id: '3',
-      patient: 'Ana Costa',
-      service: 'Exame Clínico',
-      date: '2024-06-16',
-      time: '14:00',
-      duration: 45,
-      value: 120,
-      status: 'scheduled',
-      paymentStatus: 'pending'
-    },
-    {
-      id: '4',
-      patient: 'Carlos Lima',
-      service: 'Consulta',
-      date: '2024-06-16',
-      time: '15:30',
-      duration: 60,
-      value: 200,
-      status: 'completed',
-      paymentStatus: 'paid'
-    },
-  ];
+  useEffect(() => {
+    const debugScheduleData = async () => {
+      console.log('=== DEBUG SCHEDULE PAGE ===');
+      
+      // Debug sessão atual
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log('Sessão atual:', session);
+      console.log('Erro de sessão:', sessionError);
+      console.log('Usuário autenticado:', !!session?.user);
+      console.log('Access token presente:', !!session?.access_token);
+
+      if (!session?.user) {
+        console.log('❌ Usuário não autenticado - redirecionando ou exibindo erro');
+        setLoading(false);
+        return;
+      }
+
+      // Timeout de 3 segundos para mostrar fallback
+      const timeoutId = setTimeout(() => {
+        console.log('⏰ Timeout de 3s atingido - dados não carregaram');
+        setDataTimeout(true);
+      }, 3000);
+
+      try {
+        // Debug consulta de atendimentos
+        console.log('📊 Consultando tabela: atendimentos');
+        console.log('Payload Supabase:', {
+          table: 'atendimentos',
+          select: '*, pacientes(*)',
+          filter: 'professional_id = ' + session.user.id
+        });
+
+        const { data: atendimentosData, error: atendimentosError } = await supabase
+          .from('atendimentos')
+          .select('*, pacientes(*)')
+          .eq('professional_id', session.user.id);
+
+        console.log('Resposta atendimentos:', { data: atendimentosData, error: atendimentosError });
+
+        if (atendimentosError) {
+          if (atendimentosError.code === 'PGRST116' || atendimentosError.message.includes('does not exist')) {
+            console.log('❌ Tabela atendimentos não encontrada ou erro 404 Supabase');
+          } else {
+            console.log('❌ Erro ao consultar atendimentos:', atendimentosError);
+          }
+        }
+
+        if (!atendimentosData || atendimentosData.length === 0) {
+          console.log('📝 Resposta vazia da tabela atendimentos');
+        }
+
+        // Debug consulta de cobranças para valores
+        console.log('📊 Consultando tabela: cobrancas');
+        const { data: cobrancasData, error: cobrancasError } = await supabase
+          .from('cobrancas')
+          .select('*')
+          .eq('professional_id', session.user.id);
+
+        console.log('Resposta cobrancas:', { data: cobrancasData, error: cobrancasError });
+
+        // Mapear dados dos atendimentos ou usar dados mock
+        const processedAppointments = atendimentosData?.map(a => {
+          const cobranca = cobrancasData?.find(c => c.atendimento_id === a.id);
+          const dataHora = new Date(a.data_hora);
+          
+          return {
+            id: a.id,
+            patient: a.pacientes?.nome || `Paciente ${a.paciente_id?.substring(0, 8)}`,
+            service: a.tipo_servico,
+            date: dataHora.toISOString().split('T')[0],
+            time: dataHora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            duration: 60,
+            value: cobranca ? Number(cobranca.valor) : 200,
+            status: a.status as any || 'scheduled',
+            paymentStatus: cobranca?.status === 'pago' ? 'paid' : 'pending'
+          };
+        }) || [
+          // Dados mock se não houver dados reais
+          {
+            id: '1',
+            patient: 'Maria Santos',
+            service: 'Consulta Cardiológica',
+            date: '2024-06-16',
+            time: '09:00',
+            duration: 60,
+            value: 200,
+            status: 'scheduled' as const,
+            paymentStatus: 'pending' as const
+          },
+          {
+            id: '2',
+            patient: 'João Silva',
+            service: 'Retorno',
+            date: '2024-06-16',
+            time: '10:30',
+            duration: 30,
+            value: 150,
+            status: 'scheduled' as const,
+            paymentStatus: 'pending' as const
+          }
+        ];
+
+        console.log('✅ Dados de agendamentos processados:', processedAppointments);
+        setAppointments(processedAppointments);
+        clearTimeout(timeoutId);
+        setLoading(false);
+
+      } catch (error) {
+        console.error('❌ Erro geral no carregamento da agenda:', error);
+        clearTimeout(timeoutId);
+        setLoading(false);
+      }
+    };
+
+    debugScheduleData();
+  }, [user]);
 
   const todayAppointments = appointments.filter(
     apt => apt.date === currentDate.toISOString().split('T')[0]
@@ -103,6 +175,33 @@ const Schedule: React.FC = () => {
       day: 'numeric'
     }).format(date);
   };
+
+  if (loading && !dataTimeout) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Carregando agenda...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (dataTimeout && appointments.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">⚠️ Dados não disponíveis</p>
+          <p className="text-sm text-muted-foreground">
+            Verifique o console para detalhes de debug
+          </p>
+          <Button onClick={() => window.location.reload()} className="mt-4">
+            Tentar Novamente
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

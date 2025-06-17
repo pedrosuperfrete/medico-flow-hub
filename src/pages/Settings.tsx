@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,11 +8,117 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUser } from '@/contexts/UserContext';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Settings: React.FC = () => {
   const { user, clinic } = useUser();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [dataTimeout, setDataTimeout] = useState(false);
+  const [profileData, setProfileData] = useState(null);
+  const [clinicData, setClinicData] = useState(null);
+
+  useEffect(() => {
+    const debugSettingsData = async () => {
+      console.log('=== DEBUG SETTINGS PAGE ===');
+      
+      // Debug sessão atual
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log('Sessão atual:', session);
+      console.log('Erro de sessão:', sessionError);
+      console.log('Usuário autenticado:', !!session?.user);
+      console.log('Access token presente:', !!session?.access_token);
+
+      if (!session?.user) {
+        console.log('❌ Usuário não autenticado - redirecionando ou exibindo erro');
+        setInitialLoading(false);
+        return;
+      }
+
+      // Timeout de 3 segundos para mostrar fallback
+      const timeoutId = setTimeout(() => {
+        console.log('⏰ Timeout de 3s atingido - dados não carregaram');
+        setDataTimeout(true);
+      }, 3000);
+
+      try {
+        // Debug consulta do perfil do usuário
+        console.log('📊 Consultando tabela: profiles');
+        console.log('Payload Supabase:', {
+          table: 'profiles',
+          select: '*',
+          filter: 'id = ' + session.user.id
+        });
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        console.log('Resposta profile:', { data: profile, error: profileError });
+
+        if (profileError) {
+          if (profileError.code === 'PGRST116' || profileError.message.includes('does not exist')) {
+            console.log('❌ Tabela profiles não encontrada ou erro 404 Supabase');
+          } else {
+            console.log('❌ Erro ao consultar profile:', profileError);
+          }
+        }
+
+        if (!profile) {
+          console.log('📝 Dados não carregados ainda - profile');
+        } else {
+          console.log('✅ Profile carregado:', profile);
+          setProfileData(profile);
+        }
+
+        // Debug consulta da clínica se o usuário tiver clinic_id
+        if (profile?.clinic_id) {
+          console.log('📊 Consultando tabela: clinicas');
+          console.log('Payload Supabase:', {
+            table: 'clinicas',
+            select: '*',
+            filter: 'id = ' + profile.clinic_id
+          });
+
+          const { data: clinicInfo, error: clinicError } = await supabase
+            .from('clinicas')
+            .select('*')
+            .eq('id', profile.clinic_id)
+            .single();
+
+          console.log('Resposta clinic:', { data: clinicInfo, error: clinicError });
+
+          if (clinicError) {
+            if (clinicError.code === 'PGRST116' || clinicError.message.includes('does not exist')) {
+              console.log('❌ Tabela clinicas não encontrada ou erro 404 Supabase');
+            } else {
+              console.log('❌ Erro ao consultar clinic:', clinicError);
+            }
+          }
+
+          if (!clinicInfo) {
+            console.log('📝 Dados não carregados ainda - clinic');
+          } else {
+            console.log('✅ Clinic carregada:', clinicInfo);
+            setClinicData(clinicInfo);
+          }
+        }
+
+        clearTimeout(timeoutId);
+        setInitialLoading(false);
+
+      } catch (error) {
+        console.error('❌ Erro geral no carregamento de configurações:', error);
+        clearTimeout(timeoutId);
+        setInitialLoading(false);
+      }
+    };
+
+    debugSettingsData();
+  }, [user]);
 
   const handleSave = async () => {
     setLoading(true);
@@ -26,6 +131,33 @@ const Settings: React.FC = () => {
       description: "Suas alterações foram salvas com sucesso.",
     });
   };
+
+  if (initialLoading && !dataTimeout) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Carregando configurações...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (dataTimeout && !profileData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">⚠️ Dados não disponíveis</p>
+          <p className="text-sm text-muted-foreground">
+            Verifique o console para detalhes de debug
+          </p>
+          <Button onClick={() => window.location.reload()} className="mt-4">
+            Tentar Novamente
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -58,7 +190,7 @@ const Settings: React.FC = () => {
                   <Label htmlFor="name">Nome Completo</Label>
                   <Input
                     id="name"
-                    defaultValue={user?.name}
+                    defaultValue={profileData?.name || user?.name}
                     placeholder="Seu nome completo"
                   />
                 </div>
@@ -67,7 +199,7 @@ const Settings: React.FC = () => {
                   <Input
                     id="email"
                     type="email"
-                    defaultValue={user?.email}
+                    defaultValue={profileData?.email || user?.email}
                     placeholder="seu@email.com"
                   />
                 </div>
@@ -76,7 +208,7 @@ const Settings: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="specialty">Especialidade</Label>
-                  <Select defaultValue={user?.specialty}>
+                  <Select defaultValue={profileData?.specialty || user?.specialty}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione sua especialidade" />
                     </SelectTrigger>
@@ -95,7 +227,7 @@ const Settings: React.FC = () => {
                   <Label htmlFor="crm">CRM/CRO</Label>
                   <Input
                     id="crm"
-                    defaultValue={user?.crm}
+                    defaultValue={profileData?.crm || user?.crm}
                     placeholder="CRM-12345"
                   />
                 </div>
@@ -122,7 +254,7 @@ const Settings: React.FC = () => {
                   <Label htmlFor="clinicName">Nome da Clínica</Label>
                   <Input
                     id="clinicName"
-                    defaultValue={clinic?.name}
+                    defaultValue={clinicData?.name || clinic?.name}
                     placeholder="Nome da sua clínica"
                   />
                 </div>
@@ -130,7 +262,7 @@ const Settings: React.FC = () => {
                   <Label htmlFor="clinicPhone">Telefone</Label>
                   <Input
                     id="clinicPhone"
-                    defaultValue={clinic?.phone}
+                    defaultValue={clinicData?.phone || clinic?.phone}
                     placeholder="(11) 99999-9999"
                   />
                 </div>
@@ -140,7 +272,7 @@ const Settings: React.FC = () => {
                 <Label htmlFor="clinicAddress">Endereço</Label>
                 <Input
                   id="clinicAddress"
-                  defaultValue={clinic?.address}
+                  defaultValue={clinicData?.address || clinic?.address}
                   placeholder="Endereço completo da clínica"
                 />
               </div>
@@ -150,7 +282,7 @@ const Settings: React.FC = () => {
                 <Input
                   id="clinicEmail"
                   type="email"
-                  defaultValue={clinic?.email}
+                  defaultValue={clinicData?.email || clinic?.email}
                   placeholder="contato@clinica.com"
                 />
               </div>

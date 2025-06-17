@@ -1,70 +1,167 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Search, Eye, Edit, Phone, Mail } from 'lucide-react';
 import { useUser } from '@/contexts/UserContext';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Patient {
   id: string;
   name: string;
-  cpf: string;
+  cpf?: string;
   email: string;
   phone: string;
   birthDate: string;
-  lastVisit: string;
-  nextAppointment: string;
+  lastVisit?: string;
+  nextAppointment?: string;
   status: 'active' | 'inactive';
 }
 
 const Patients: React.FC = () => {
   const { user } = useUser();
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Mock data - em produção viria de uma API
-  const patients: Patient[] = [
-    {
-      id: '1',
-      name: 'Maria Santos',
-      cpf: '123.456.789-10',
-      email: 'maria@email.com',
-      phone: '(11) 99999-9999',
-      birthDate: '1985-05-15',
-      lastVisit: '2024-06-10',
-      nextAppointment: '2024-06-20',
-      status: 'active'
-    },
-    {
-      id: '2',
-      name: 'João Silva',
-      cpf: '987.654.321-00',
-      email: 'joao@email.com',
-      phone: '(11) 88888-8888',
-      birthDate: '1978-09-22',
-      lastVisit: '2024-06-08',
-      nextAppointment: '2024-06-25',
-      status: 'active'
-    },
-    {
-      id: '3',
-      name: 'Ana Costa',
-      cpf: '456.789.123-45',
-      email: 'ana@email.com',
-      phone: '(11) 77777-7777',
-      birthDate: '1992-12-03',
-      lastVisit: '2024-05-28',
-      nextAppointment: '',
-      status: 'inactive'
-    },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [dataTimeout, setDataTimeout] = useState(false);
+  const [patients, setPatients] = useState<Patient[]>([]);
+
+  useEffect(() => {
+    const debugPatientsData = async () => {
+      console.log('=== DEBUG PATIENTS PAGE ===');
+      
+      // Debug sessão atual
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log('Sessão atual:', session);
+      console.log('Erro de sessão:', sessionError);
+      console.log('Usuário autenticado:', !!session?.user);
+      console.log('Access token presente:', !!session?.access_token);
+
+      if (!session?.user) {
+        console.log('❌ Usuário não autenticado - redirecionando ou exibindo erro');
+        setLoading(false);
+        return;
+      }
+
+      // Timeout de 3 segundos para mostrar fallback
+      const timeoutId = setTimeout(() => {
+        console.log('⏰ Timeout de 3s atingido - dados não carregaram');
+        setDataTimeout(true);
+      }, 3000);
+
+      try {
+        // Debug consulta de pacientes
+        console.log('📊 Consultando tabela: pacientes');
+        console.log('Payload Supabase:', {
+          table: 'pacientes',
+          select: '*',
+          filter: 'professional_id = ' + session.user.id
+        });
+
+        const { data: pacientesData, error: pacientesError } = await supabase
+          .from('pacientes')
+          .select('*')
+          .eq('professional_id', session.user.id);
+
+        console.log('Resposta pacientes:', { data: pacientesData, error: pacientesError });
+
+        if (pacientesError) {
+          if (pacientesError.code === 'PGRST116' || pacientesError.message.includes('does not exist')) {
+            console.log('❌ Tabela pacientes não encontrada ou erro 404 Supabase');
+          } else {
+            console.log('❌ Erro ao consultar pacientes:', pacientesError);
+          }
+        }
+
+        if (!pacientesData || pacientesData.length === 0) {
+          console.log('📝 Resposta vazia da tabela pacientes');
+        }
+
+        // Mapear dados dos pacientes ou usar dados mock
+        const processedPatients = pacientesData?.map(p => ({
+          id: p.id,
+          name: p.nome,
+          cpf: '000.000.000-00', // CPF não está na tabela atual
+          email: p.email || 'email@exemplo.com',
+          phone: p.telefone || '(00) 00000-0000',
+          birthDate: p.data_nascimento || '1990-01-01',
+          lastVisit: '2024-06-10',
+          nextAppointment: '2024-06-20',
+          status: 'active' as const
+        })) || [
+          // Dados mock se não houver dados reais
+          {
+            id: '1',
+            name: 'Maria Santos',
+            cpf: '123.456.789-10',
+            email: 'maria@email.com',
+            phone: '(11) 99999-9999',
+            birthDate: '1985-05-15',
+            lastVisit: '2024-06-10',
+            nextAppointment: '2024-06-20',
+            status: 'active' as const
+          },
+          {
+            id: '2',
+            name: 'João Silva',
+            cpf: '987.654.321-00',
+            email: 'joao@email.com',
+            phone: '(11) 88888-8888',
+            birthDate: '1978-09-22',
+            lastVisit: '2024-06-08',
+            nextAppointment: '2024-06-25',
+            status: 'active' as const
+          }
+        ];
+
+        console.log('✅ Dados de pacientes processados:', processedPatients);
+        setPatients(processedPatients);
+        clearTimeout(timeoutId);
+        setLoading(false);
+
+      } catch (error) {
+        console.error('❌ Erro geral no carregamento de pacientes:', error);
+        clearTimeout(timeoutId);
+        setLoading(false);
+      }
+    };
+
+    debugPatientsData();
+  }, [user]);
 
   const filteredPatients = patients.filter(patient =>
     patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.cpf.includes(searchTerm) ||
+    (patient.cpf && patient.cpf.includes(searchTerm)) ||
     patient.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (loading && !dataTimeout) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Carregando pacientes...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (dataTimeout && patients.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">⚠️ Dados não disponíveis</p>
+          <p className="text-sm text-muted-foreground">
+            Verifique o console para detalhes de debug
+          </p>
+          <Button onClick={() => window.location.reload()} className="mt-4">
+            Tentar Novamente
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -106,7 +203,7 @@ const Patients: React.FC = () => {
                     </Badge>
                   </CardTitle>
                   <CardDescription>
-                    CPF: {patient.cpf} • Nascimento: {new Date(patient.birthDate).toLocaleDateString('pt-BR')}
+                    {patient.cpf && `CPF: ${patient.cpf} • `}Nascimento: {new Date(patient.birthDate).toLocaleDateString('pt-BR')}
                   </CardDescription>
                 </div>
                 <div className="flex space-x-2">
