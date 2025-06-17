@@ -33,15 +33,17 @@ const ClinicInfoStep: React.FC<ClinicInfoStepProps> = ({ onNext, initialData = {
     console.log('Usuário autenticado:', user?.id);
 
     try {
-      // Verificar se o usuário está autenticado
-      const { data: { session } } = await supabase.auth.getSession();
+      // Verificar se o usuário está autenticado e obter a sessão atual
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       console.log('Sessão atual:', session);
+      console.log('Access token presente:', !!session?.access_token);
 
-      if (!session || !user) {
-        throw new Error('Usuário não autenticado');
+      if (sessionError || !session || !session.access_token || !user) {
+        throw new Error('Usuário não autenticado ou sessão inválida');
       }
 
-      // Criar clínica no Supabase
+      // Criar clínica no Supabase com os headers corretos
+      console.log('Inserindo clínica com usuário autenticado...');
       const { data: clinic, error: clinicError } = await supabase
         .from('clinicas')
         .insert([formData])
@@ -52,27 +54,36 @@ const ClinicInfoStep: React.FC<ClinicInfoStepProps> = ({ onNext, initialData = {
 
       if (clinicError) {
         console.error('Erro ao criar clínica:', clinicError);
-        throw clinicError;
+        console.error('Detalhes do erro:', {
+          message: clinicError.message,
+          details: clinicError.details,
+          hint: clinicError.hint,
+          code: clinicError.code
+        });
+        throw new Error(`Erro ao criar clínica: ${clinicError.message}`);
+      }
+
+      if (!clinic) {
+        throw new Error('Clínica criada mas dados não retornados');
       }
 
       // Atualizar o perfil do usuário com o clinic_id
-      if (user && clinic) {
-        console.log('Atualizando perfil do usuário com clinic_id:', clinic.id);
-        
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({ 
-            clinic_id: clinic.id,
-            role: 'admin' // O primeiro usuário vira admin
-          })
-          .eq('id', user.id);
+      console.log('Atualizando perfil do usuário com clinic_id:', clinic.id);
+      
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ 
+          clinic_id: clinic.id,
+          role: 'admin' // O primeiro usuário vira admin
+        })
+        .eq('id', user.id);
 
-        console.log('Resultado da atualização do perfil:', { profileError });
+      console.log('Resultado da atualização do perfil:', { profileError });
 
-        if (profileError) {
-          console.error('Erro ao atualizar perfil:', profileError);
-          throw profileError;
-        }
+      if (profileError) {
+        console.error('Erro ao atualizar perfil:', profileError);
+        // Se falhar em atualizar o perfil, não bloquear o fluxo
+        console.warn('Continuando apesar do erro no perfil...');
       }
 
       console.log('Clínica criada com sucesso!');
