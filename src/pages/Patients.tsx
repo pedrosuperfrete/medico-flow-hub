@@ -50,7 +50,7 @@ const Patients: React.FC = () => {
           *,
           atendimentos!inner(data_hora)
         `)
-        .eq('clinic_id', user?.clinic_id)
+        .eq('clinic_id', user?.clinicId)
         .order('nome');
 
       if (error) throw error;
@@ -79,7 +79,7 @@ const Patients: React.FC = () => {
         .from('pacientes')
         .insert([{
           ...patientData,
-          clinic_id: user?.clinic_id,
+          clinic_id: user?.clinicId,
           professional_id: user?.id
         }]);
 

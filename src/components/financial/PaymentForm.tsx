@@ -41,7 +41,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ onSubmit, onCancel }) => {
           valor,
           pacientes!inner(nome)
         `)
-        .eq('clinic_id', user?.clinic_id)
+        .eq('clinic_id', user?.clinicId)
         .is('pagamentos.id', null)
         .order('data_hora', { ascending: false });
 

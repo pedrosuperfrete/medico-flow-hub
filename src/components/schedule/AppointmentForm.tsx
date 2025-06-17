@@ -36,7 +36,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ appointment, onSubmit
       const { data, error } = await supabase
         .from('pacientes')
         .select('id, nome')
-        .eq('clinic_id', user?.clinic_id)
+        .eq('clinic_id', user?.clinicId)
         .eq('ativo', true)
         .order('nome');
 

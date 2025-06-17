@@ -34,11 +34,10 @@ const Dashboard: React.FC = () => {
       // Buscar faturamento do mês
       const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
       const { data: monthlyRevenue } = await supabase
-        .from('cobrancas')
+        .from('pagamentos')
         .select('valor')
-        .eq('professional_id', user.id)
         .eq('status', 'pago')
-        .gte('data_cobranca', startOfMonth);
+        .gte('created_at', startOfMonth);
 
       const totalRevenue = monthlyRevenue?.reduce((sum, item) => sum + Number(item.valor), 0) || 0;
 

@@ -67,6 +67,7 @@ const Financial: React.FC = () => {
 
       const processedPayments = data?.map(payment => ({
         ...payment,
+        status: payment.status as 'pendente' | 'pago' | 'cancelado' | 'estornado',
         atendimento: {
           ...payment.atendimentos,
           paciente: payment.atendimentos.pacientes

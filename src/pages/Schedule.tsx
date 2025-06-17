@@ -53,7 +53,7 @@ const Schedule: React.FC = () => {
           *,
           pacientes!inner(nome, telefone)
         `)
-        .eq('clinic_id', user?.clinic_id)
+        .eq('clinic_id', user?.clinicId)
         .gte('data_hora', startDate.toISOString())
         .lte('data_hora', endDate.toISOString())
         .order('data_hora');
@@ -62,6 +62,7 @@ const Schedule: React.FC = () => {
 
       const processedAppointments = data?.map(appointment => ({
         ...appointment,
+        status: appointment.status as 'agendado' | 'confirmado' | 'em_andamento' | 'concluido' | 'cancelado' | 'perdido',
         paciente: appointment.pacientes
       })) || [];
 
@@ -84,7 +85,7 @@ const Schedule: React.FC = () => {
         .from('atendimentos')
         .insert([{
           ...appointmentData,
-          clinic_id: user?.clinic_id,
+          clinic_id: user?.clinicId,
           professional_id: user?.id
         }]);
 
