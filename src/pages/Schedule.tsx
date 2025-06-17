@@ -99,8 +99,8 @@ const Schedule: React.FC = () => {
             time: dataHora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
             duration: 60,
             value: cobranca ? Number(cobranca.valor) : 200,
-            status: a.status as any || 'scheduled',
-            paymentStatus: cobranca?.status === 'pago' ? 'paid' : 'pending'
+            status: (a.status as 'scheduled' | 'completed' | 'cancelled' | 'missed') || 'scheduled',
+            paymentStatus: (cobranca?.status === 'pago' ? 'paid' : 'pending') as 'pending' | 'paid'
           };
         }) || [
           // Dados mock se não houver dados reais
